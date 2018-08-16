@@ -16,7 +16,7 @@ cmake ../;
 cmake --build .;
 ```
 ### Example Session
-```
+```console
 curl "https://www.stellarbeat.io/nodes/raw" | ./quorum_intersection
 ```
 Expected Output:

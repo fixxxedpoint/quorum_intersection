@@ -1,5 +1,5 @@
 # quorum_intersection
-A tool for verifying the quorum intersection property of the stellar network. It accepts data in JSON format compatible with https://www.stellarbeat.io/nodes/raw . Use --help parameter to see available options.
+A tool for verifying the quorum intersection property of the stellar network. It accepts data in JSON format compatible with https://www.stellarbeat.io/nodes/raw . Use --help parameter to see available options. WARNING: the problem of finding disjoint quorums in stellar's network configuration is NP-hard.
 ## Getting Started
 ### Prerequisites
 Tools and libraries required to build this project:

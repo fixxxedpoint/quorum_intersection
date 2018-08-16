@@ -87,7 +87,7 @@ bool containsQuorumSlice(NodeIx node,
   }
   uint32_t threshold = quorumSet.threshold;
   uint32_t failLimit = static_cast<uint32_t>(quorumSet.nodes.size() +
-											 quorumSet.innerSets.size()) - threshold + 1;
+                                             quorumSet.innerSets.size()) - threshold + 1;
   BOOST_LOG_TRIVIAL(trace) << "threshold: " << threshold;
   BOOST_LOG_TRIVIAL(trace) << "number of nodes to consider: "  << quorumSet.nodes.size();
   for (auto& id : quorumSet.nodes) {
@@ -167,13 +167,13 @@ vector<NodeIx> containsQuorum(vector<NodeIx> nodes,
 }
 
 bool isMinimalQuorum(vector<NodeIx> nodes,
-					 vector<bool> availableNodes,
-					 const Graph3& graph,
-					 const Indexes& indexes) {
+                     vector<bool> availableNodes,
+                     const Graph3& graph,
+                     const Indexes& indexes) {
   BOOST_LOG_TRIVIAL(trace) << "checking for minimal quorum, size: " << nodes.size();
   vector<NodeIx> nodesV(nodes.begin(), nodes.end());
   if (containsQuorum(nodesV, availableNodes, graph, indexes).empty()) {
-	BOOST_LOG_TRIVIAL(trace) << "it does not contain a quorum";
+    BOOST_LOG_TRIVIAL(trace) << "it does not contain a quorum";
     return false;
   }
   for (NodeIx node : nodes) {
@@ -259,7 +259,7 @@ bool iterateMinimalQuorums(vector<NodeIx> toRemove,
   BOOST_LOG_TRIVIAL(trace) << "iterateMinimalQuorums counter: " << ++counter;
 
   if (currentVisitor(dontRemove)) {
-	BOOST_LOG_TRIVIAL(trace) << "exiting due to currentVisitor";
+    BOOST_LOG_TRIVIAL(trace) << "exiting due to currentVisitor";
     return false;
   }
 
@@ -285,7 +285,7 @@ bool iterateMinimalQuorums(vector<NodeIx> toRemove,
 
   BOOST_LOG_TRIVIAL(trace) << "checking if dontRemove contains some quorum";
   if (!containsQuorum(nodes, availableNodes, graph, indexes).empty()) {
-	BOOST_LOG_TRIVIAL(trace) << "dontRemove contains some quorum";
+    BOOST_LOG_TRIVIAL(trace) << "dontRemove contains some quorum";
     if (isMinimalQuorum(dontRemove, availableNodes, graph, indexes)) {
       BOOST_LOG_TRIVIAL(trace) << "found minimal quorum of size " << dontRemove.size();
       return visitor(dontRemove);
@@ -304,7 +304,7 @@ bool iterateMinimalQuorums(vector<NodeIx> toRemove,
   }
 
   BOOST_LOG_TRIVIAL(trace) << "searching for any quorum, size: " << nodes.size() << " "
-						   << toRemove.size() + dontRemove.size();
+                           << toRemove.size() + dontRemove.size();
   for (const auto& av : availableNodes) {
     BOOST_LOG_TRIVIAL(trace) << av << " ";
   }
@@ -341,9 +341,9 @@ bool iterateMinimalQuorums(vector<NodeIx> toRemove,
   // quorumNodes.erase(bestNode);
   toRemove.clear();
   copy_if(quorumNodes.begin(), quorumNodes.end(), back_inserter(toRemove),
-		  [&bestNode](const NodeIx& node) {
-			return node != bestNode;
-		  });
+          [&bestNode](const NodeIx& node) {
+            return node != bestNode;
+          });
   BOOST_LOG_TRIVIAL(trace) << "new toRemove size: " << quorumNodes.size();
   if (iterateMinimalQuorums(toRemove, dontRemove, indexes, graph, visitor, currentVisitor)) {
     BOOST_LOG_TRIVIAL(trace) << "recursive call returned true";
@@ -453,18 +453,18 @@ template <typename Graph>
 class NodeWriter {
 public:
   NodeWriter(const Indexes& _indexes, const vector< uint >& _colors, uint _colorsCount, const Graph& _graph) :
-	indexes(_indexes),
-	colors(_colors),
+    indexes(_indexes),
+    colors(_colors),
     offset(0xFFFFFF / _colorsCount),
     graph(_graph) {
   }
 
   template <typename Vertex>
   void operator()(std::ostream& out, const Vertex& v) const {
-	stringstream stream;
-	stream << setfill ('0') << setw(3*2) << hex << offset * colors[indexes[v]];
-	string color = stream.str();
-	string label = graph[v].data.name.empty() ? graph[v].data.nodeID : graph[v].data.name;
+    stringstream stream;
+    stream << setfill ('0') << setw(3*2) << hex << offset * colors[indexes[v]];
+    string color = stream.str();
+    string label = graph[v].data.name.empty() ? graph[v].data.nodeID : graph[v].data.name;
 
     out << "[style=filled color=\"#" << color << "\" label=\"" << label << "\" fontcolor=\"white\"]";
   }
@@ -477,21 +477,21 @@ private:
 
 template<typename Graph>
 void printGraphvizWithSccs(const Graph& graph,
-						   ostream& out,
-						   const vector< vector<NodeIx> >& sccs,
-						   const Indexes& indexes) {
+                           ostream& out,
+                           const vector< vector<NodeIx> >& sccs,
+                           const Indexes& indexes) {
   vector< uint > colors(num_vertices(graph));
   for (auto it = 0u; it < sccs.size(); it++) {
-	for (const auto& v : sccs[it]) {
-	  colors[indexes[v]] = it;
-	}
+    for (const auto& v : sccs[it]) {
+      colors[indexes[v]] = it;
+    }
   }
   write_graphviz(out, graph, NodeWriter<Graph>(indexes, colors, sccs.size(), graph));
   // boost::dynamic_properties dp;
   // dp.property("label", boost::get(&StellarNode::name, graph));
   // dp.property("label", boost::get(&GenericStellarNode<NodeData, GraphQData>::data::name, graph));
   // auto colorGetter = [&colors, &indexes](const NodeIx& node) -> int {
-  // 	return colors[indexes[node]];
+  //    return colors[indexes[node]];
   // };
   // dp.property("color", &colorGetter);
   // dp.property("color", );
@@ -502,8 +502,8 @@ void printGraphvizWithSccs(const Graph& graph,
 bool checkMinimalQuorums(const vector<NodeIx>& scc,
                          const Graph3& graph,
                          const Indexes& verIndexes,
-						 vector<NodeIx>& foundQuorum1,
-						 vector<NodeIx>& foundQuorum2) {
+                         vector<NodeIx>& foundQuorum1,
+                         vector<NodeIx>& foundQuorum2) {
   bool result = true;
   vector<bool> availableNodes(num_vertices(graph), true);
   auto counter = 0;
@@ -517,15 +517,15 @@ bool checkMinimalQuorums(const vector<NodeIx>& scc,
       availableNodes[verIndexes[node]] = false;
     }
 
-	auto disjointQuorum = containsQuorum(scc, availableNodes, graph, verIndexes);
+    auto disjointQuorum = containsQuorum(scc, availableNodes, graph, verIndexes);
     if (!disjointQuorum.empty()) {
       result = false;
 
-	  foundQuorum1 = disjointQuorum;
-	  foundQuorum2 = vector<NodeIx>(quorum.begin(), quorum.end());
+      foundQuorum1 = disjointQuorum;
+      foundQuorum2 = vector<NodeIx>(quorum.begin(), quorum.end());
       BOOST_LOG_TRIVIAL(trace) << "sizes of disjoint quorums: "
-							   << quorum.size() << " ,"
-							   << disjointQuorum.size();
+                               << quorum.size() << " ,"
+                               << disjointQuorum.size();
       return true;
     }
 
@@ -570,12 +570,12 @@ bool solve(const Graph3& graph, ostream& cout, bool verbose, bool printGraphviz)
   }
 
   if (printGraphviz) {
-	printGraphvizWithSccs(graph, cout, sccs, indexes);
-	return true;
+    printGraphvizWithSccs(graph, cout, sccs, indexes);
+    return true;
   }
 
   if (verbose) {
-	cout << "total number of strongly connected components: " << sccCount << endl;
+    cout << "total number of strongly connected components: " << sccCount << endl;
   }
 
   // verify that all minimal quorums are contained only in the last (in topological order) strongly
@@ -596,10 +596,10 @@ bool solve(const Graph3& graph, ostream& cout, bool verbose, bool printGraphviz)
     auto quorum = containsQuorum(nodes, availableNodes, graph, indexes);
     if (!quorum.empty()) {
       nonIntersectingQs++;
-	  if (verbose) {
-	    cout << "found quorum inside of a strongly connected component";
-		printQuorum(quorum, graph, cout);
-	  }
+      if (verbose) {
+        cout << "found quorum inside of a strongly connected component";
+        printQuorum(quorum, graph, cout);
+      }
     } else {
       BOOST_LOG_TRIVIAL(trace) << "no quorum inside of a strongly connected component";
     }
@@ -609,34 +609,34 @@ bool solve(const Graph3& graph, ostream& cout, bool verbose, bool printGraphviz)
     }
   }
   if (verbose) {
-	cout << "number of strongly connected components containing some quorum: " << nonIntersectingQs << endl;
-	cout << "size of the main strongly connected component: " << sccs.front().size() << endl;
-	cout << "main strongly connected component:" << endl;
-	printQuorum(sccs.front(), graph, cout);
+    cout << "number of strongly connected components containing some quorum: " << nonIntersectingQs << endl;
+    cout << "size of the main strongly connected component: " << sccs.front().size() << endl;
+    cout << "main strongly connected component:" << endl;
+    printQuorum(sccs.front(), graph, cout);
   }
 
   if (nonIntersectingQs != 1) {
-	if (verbose) {
-	  cout << "network's configuration is broken - more than one strongly connected component contains a quorum - "
-		   << nonIntersectingQs;
-	}
+    if (verbose) {
+      cout << "network's configuration is broken - more than one strongly connected component contains a quorum - "
+           << nonIntersectingQs;
+    }
     return false;
   }
 
   vector<NodeIx> q1, q2;
   if (!checkMinimalQuorums(sccs.front(), graph, indexes, q1, q2)) {
-	if (verbose) {
-	  cout << "found two non-intersecting quorums" << endl;
-	  cout << "first quorum:" << endl;
-	  printQuorum(q1, graph, cout);
-	  cout << "second quorum:" << endl;
-	  printQuorum(q2, graph, cout);
-	}
+    if (verbose) {
+      cout << "found two non-intersecting quorums" << endl;
+      cout << "first quorum:" << endl;
+      printQuorum(q1, graph, cout);
+      cout << "second quorum:" << endl;
+      printQuorum(q2, graph, cout);
+    }
     return false;
   }
 
   if (verbose) {
-	cout << "all quorums are intersecting" << endl;
+    cout << "all quorums are intersecting" << endl;
   }
   return true;
 }
@@ -653,9 +653,9 @@ bool solve(istream& cin, ostream& cout, bool verbose, bool printGraphviz) {
 void initLogging(bool trace)
 {
   if (trace) {
-	logging::core::get()->set_filter(logging::trivial::severity >= logging::trivial::trace);
+    logging::core::get()->set_filter(logging::trivial::severity >= logging::trivial::trace);
   } else {
-	logging::core::get()->set_filter(logging::trivial::severity >= logging::trivial::info);
+    logging::core::get()->set_filter(logging::trivial::severity >= logging::trivial::info);
   }
 }
 
@@ -668,36 +668,36 @@ int main(int argc, char* argv[])
 
   po::options_description desc("Allowed options");
   desc.add_options()
-  	("help,h", po::bool_switch(&help), "print usage message")
-  	("verbose,v", po::bool_switch(&verbose), "print more details")
-  	("graph,g", po::bool_switch(&printGraphviz), "print graphviz representation of network's configuration")
-  	("trace,t", po::bool_switch(&trace), "enable tracing messages")
-  	;
+    ("help,h", po::bool_switch(&help), "print usage message")
+    ("verbose,v", po::bool_switch(&verbose), "print more details")
+    ("graph,g", po::bool_switch(&printGraphviz), "print graphviz representation of network's configuration")
+    ("trace,t", po::bool_switch(&trace), "enable tracing messages")
+    ;
 
   try {
-	po::variables_map vm;
-	po::store(po::parse_command_line(argc, argv, desc), vm);
-	po::notify(vm);
+    po::variables_map vm;
+    po::store(po::parse_command_line(argc, argv, desc), vm);
+    po::notify(vm);
   } catch(boost::exception& e) {
-	cout << "Invalid option!" << endl;
-	cout << desc;
-	return EXIT_FAILURE;
+    cout << "Invalid option!" << endl;
+    cout << desc;
+    return EXIT_FAILURE;
   }
 
   initLogging(trace);
 
   if (help) {
-	cout << desc << endl;
-	return EXIT_SUCCESS;
+    cout << desc << endl;
+    return EXIT_SUCCESS;
   }
 
   cout << boolalpha;
   bool result = solve(cin, cout, verbose, printGraphviz);
   if (result) {
-	cout << true << endl;
+    cout << true << endl;
   } else {
-	cout << false << endl;
-	return EXIT_FAILURE;
+    cout << false << endl;
+    return EXIT_FAILURE;
   }
 
   return EXIT_SUCCESS;

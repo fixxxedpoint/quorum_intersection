@@ -620,7 +620,7 @@ bool solve(const Graph3& graph, ostream& cout, bool verbose, bool printGraphviz)
     if (!quorum.empty()) {
       nonIntersectingQs++;
       if (verbose) {
-        cout << "found quorum inside of a strongly connected component";
+        cout << "found quorum inside of a strongly connected component:" << endl;
         printQuorum(quorum, graph, cout);
       }
     } else {
@@ -634,7 +634,8 @@ bool solve(const Graph3& graph, ostream& cout, bool verbose, bool printGraphviz)
   if (verbose) {
     cout << "number of strongly connected components containing some quorum: " << nonIntersectingQs << endl;
     cout << "size of the main strongly connected component: " << sccs.front().size() << endl;
-    cout << "main strongly connected component:" << endl;
+    cout << "main strongly connected component (all minimal quorums are included in it; "
+		 << "small size means small resilience of the network):" << endl;
     printQuorum(sccs.front(), graph, cout);
   }
 

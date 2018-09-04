@@ -124,13 +124,12 @@ PageRankVector pageRank(const Graph3& graph,
 	BOOST_LOG_TRIVIAL(trace) << "PageRank, iteration " << iterations << ", diff " << diff
 							 << ", sum " << sum << endl;
 
-	tmpStorage = resultStorage;
+	const float_t mS = m / numVertices;
+	sum = numVertices*mS;
+	fill(tmpStorage.begin(), tmpStorage.end(), mS);
 
 	Graph3::vertex_iterator v1, v2;
 	for (tie(v1, v2) = vertices(graph); v1 != v2; v1++) {
-	  const float_t mS = m / numVertices;
-	  tmp[indexes[*v1]] += mS;
-	  sum += mS;
 	  const float_t outDegree = float_t(out_degree(*v1, graph));
 	  if (outDegree == 0) {
 		continue;
@@ -143,16 +142,9 @@ PageRankVector pageRank(const Graph3& graph,
 	  }
 	}
 
-	// normalize
-    float_t newSum = 0;
-	for (tie(v1, v2) = vertices(graph); v1 != v2; v1++) {
-	  tmp[indexes[*v1]] /= sum;
-	  newSum += tmp[indexes[*v1]];
-	}
-	sum = newSum;
-
 	diff = 0;
 	for (tie(v1, v2) = vertices(graph); v1 != v2; v1++) {
+	  tmp[indexes[*v1]] /= sum;
 	  diff += fabs(tmp[indexes[*v1]] - result[indexes[*v1]]);
 	}
 

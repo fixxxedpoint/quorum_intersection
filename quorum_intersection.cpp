@@ -29,6 +29,7 @@
 #include <algorithm>
 #include <functional>
 #include <random>
+#include <cmath>
 
 #include <boost/program_options.hpp>
 #include <boost/graph/adjacency_list.hpp>
@@ -98,6 +99,68 @@ struct GraphQData {
 };
 
 using Indexes = property_map<Graph3, vertex_index_t>::type;
+
+using PageRankVector = std::vector<float_t>;
+
+using PageRank = iterator_property_map<typename PageRankVector::iterator, Indexes>;
+
+PageRankVector pageRank(const Graph3& graph,
+						const Indexes& indexes,
+						const float_t m,
+						const float_t convergence,
+						const uint64_t maxIterations) {
+  const auto numVertices = num_vertices(graph);
+
+  PageRankVector resultStorage(numVertices, 0);
+  resultStorage[0] = 1;
+  float_t sum = 1;
+  PageRank result = make_iterator_property_map(resultStorage.begin(), indexes);
+  PageRankVector tmpStorage = resultStorage;
+  PageRank tmp = make_iterator_property_map(tmpStorage.begin(), indexes);
+
+  float_t diff = convergence;
+  uint64_t iterations = 0;
+  for (; diff >= convergence && iterations < maxIterations; iterations++) {
+	BOOST_LOG_TRIVIAL(trace) << "PageRank, iteration " << iterations << ", diff " << diff
+							 << ", sum " << sum << endl;
+
+	tmpStorage = resultStorage;
+
+	Graph3::vertex_iterator v1, v2;
+	for (tie(v1, v2) = vertices(graph); v1 != v2; v1++) {
+	  const float_t mS = m / numVertices;
+	  tmp[indexes[*v1]] += mS;
+	  sum += mS;
+	  const float_t outDegree = float_t(out_degree(*v1, graph));
+	  if (outDegree == 0) {
+		continue;
+	  }
+	  const float_t Ax_k = (1 - m) / outDegree * result[indexes[*v1]];
+	  Graph3::adjacency_iterator av1, av2;
+	  for (tie(av1, av2) = adjacent_vertices(*v1, graph); av1 != av2; av1++) {
+		tmp[indexes[*av1]] += Ax_k;
+		sum += Ax_k;
+	  }
+	}
+
+	// normalize
+    float_t newSum = 0;
+	for (tie(v1, v2) = vertices(graph); v1 != v2; v1++) {
+	  tmp[indexes[*v1]] /= sum;
+	  newSum += tmp[indexes[*v1]];
+	}
+	sum = newSum;
+
+	diff = 0;
+	for (tie(v1, v2) = vertices(graph); v1 != v2; v1++) {
+	  diff += fabs(tmp[indexes[*v1]] - result[indexes[*v1]]);
+	}
+
+	resultStorage = tmpStorage;
+  }
+
+  return resultStorage;
+}
 
 bool containsQuorumSlice(NodeIx node,
                          const GenericQuorumSet<GraphQData>& quorumSet,
@@ -522,6 +585,18 @@ void printGraphvizWithSccs(const Graph& graph,
   // write_graphviz_dp(out, graph, dp);
 }
 
+void printPageRank(const Graph3& graph,
+				   const Indexes& indexes,
+				   ostream& out,
+				   PageRankVector& pageRankValues) {
+  PageRank pageRank = make_iterator_property_map(pageRankValues.begin(), indexes);
+  Graph3::vertex_iterator v1, v2;
+  for (tie(v1, v2) = vertices(graph); v1 != v2; v1++) {
+    string label = graph[*v1].data.name.empty() ? graph[*v1].data.nodeID : graph[*v1].data.name;
+	out << label << ": " << pageRank[indexes[*v1]] << endl;
+  }
+}
+
 bool checkMinimalQuorums(const vector<NodeIx>& scc,
                          const Graph3& graph,
                          const Indexes& verIndexes,
@@ -662,6 +737,7 @@ bool solve(const Graph3& graph, ostream& cout, bool verbose, bool printGraphviz)
   if (verbose) {
     cout << "all quorums are intersecting" << endl;
   }
+
   return true;
 }
 
@@ -672,6 +748,23 @@ bool solve(istream& cin, ostream& cout, bool verbose, bool printGraphviz) {
     graph = buildDependencyGraph3(nodes);
   }
   return solve(graph, cout, verbose, printGraphviz);
+}
+
+void computePageRank(istream& cin,
+					 ostream& cout,
+					 const float_t danglingFactor,
+					 const float_t convergence,
+					 const uint64_t maxIterations) {
+  Graph3 graph;
+  {
+	auto nodes = parseStellarConfigurationJSON(cin);
+	graph = buildDependencyGraph3(nodes);
+  }
+  auto indexes = get(vertex_index, graph);
+
+  auto pageRankValues = pageRank(graph, indexes, danglingFactor, convergence, maxIterations);
+  cout << "PageRank:" << endl;
+  printPageRank(graph, indexes, cout, pageRankValues);
 }
 
 void initLogging(bool trace)
@@ -689,6 +782,10 @@ int main(int argc, char* argv[])
   bool verbose = false;
   bool printGraphviz = false;
   bool trace = false;
+  bool pageRankFlag = false;
+  uint64_t maxIterations = 100000;
+  float_t danglingFactor = 0.15;
+  float_t convergence = 0.0000001;
 
   po::options_description desc("Allowed options");
   desc.add_options()
@@ -696,6 +793,10 @@ int main(int argc, char* argv[])
     ("verbose,v", po::bool_switch(&verbose), "print more details")
     ("graph,g", po::bool_switch(&printGraphviz), "print graphviz representation of network's configuration")
     ("trace,t", po::bool_switch(&trace), "enable tracing messages")
+    ("pagerank,p", po::bool_switch(&pageRankFlag), "compute the PageRank for the network")
+    ("max_iterations,i", po::value<uint64_t>(&maxIterations), "maximal number of iterations for the PageRank algorithm")
+    ("dangling_factor,m", po::value<float_t>(&danglingFactor), "dangling factor parameter of the PageRank algorithm")
+    ("convergence,c", po::value<float_t>(&danglingFactor), "convergence parameter of the PageRank algorithm")
     ;
 
   try {
@@ -713,6 +814,12 @@ int main(int argc, char* argv[])
   if (help) {
     cout << desc << endl;
     return EXIT_SUCCESS;
+  }
+
+  if (pageRankFlag) {
+	computePageRank(cin, cout, danglingFactor, convergence, maxIterations);
+
+	return EXIT_SUCCESS;
   }
 
   cout << boolalpha;

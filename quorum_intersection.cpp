@@ -21,28 +21,28 @@
  * IN
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-#include <vector>
+#include <algorithm>
+#include <cmath>
+#include <functional>
 #include <iostream>
+#include <random>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
-#include <string>
-#include <algorithm>
-#include <functional>
-#include <random>
-#include <cmath>
+#include <vector>
 
-#include <boost/program_options.hpp>
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/graph_utility.hpp>
-#include <boost/graph/strong_components.hpp>
 #include <boost/graph/graphviz.hpp>
-#include <boost/property_tree/ptree.hpp>
-#include <boost/property_tree/json_parser.hpp>
+#include <boost/graph/strong_components.hpp>
 #include <boost/log/support/date_time.hpp>
+#include <boost/program_options.hpp>
+#include <boost/property_tree/json_parser.hpp>
+#include <boost/property_tree/ptree.hpp>
 
 #include <boost/log/core.hpp>
-#include <boost/log/trivial.hpp>
 #include <boost/log/expressions.hpp>
+#include <boost/log/trivial.hpp>
 
 
 namespace logging = boost::log;
@@ -99,9 +99,7 @@ struct GraphQData {
 };
 
 using Indexes = property_map<Graph3, vertex_index_t>::type;
-
 using PageRankVector = std::vector<float_t>;
-
 using PageRank = iterator_property_map<typename PageRankVector::iterator, Indexes>;
 
 PageRankVector pageRank(const Graph3& graph,
@@ -118,9 +116,9 @@ PageRankVector pageRank(const Graph3& graph,
   PageRankVector tmpStorage = resultStorage;
   PageRank tmp = make_iterator_property_map(tmpStorage.begin(), indexes);
 
-  float_t diff = convergence;
+  float_t diff = convergence + 1;
   uint64_t iterations = 0;
-  for (; diff >= convergence && iterations < maxIterations; iterations++) {
+  for (; diff > convergence && iterations < maxIterations; iterations++) {
 	BOOST_LOG_TRIVIAL(trace) << "PageRank, iteration " << iterations << ", diff " << diff
 							 << ", sum " << sum << endl;
 
@@ -788,7 +786,7 @@ int main(int argc, char* argv[])
     ("pagerank,p", po::bool_switch(&pageRankFlag), "compute the PageRank for the network")
     ("max_iterations,i", po::value<uint64_t>(&maxIterations), "maximal number of iterations for the PageRank algorithm")
     ("dangling_factor,m", po::value<float_t>(&danglingFactor), "dangling factor parameter of the PageRank algorithm")
-    ("convergence,c", po::value<float_t>(&danglingFactor), "convergence parameter of the PageRank algorithm")
+    ("convergence,c", po::value<float_t>(&convergence), "convergence parameter of the PageRank algorithm")
     ;
 
   try {

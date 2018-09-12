@@ -142,8 +142,8 @@ PageRankVector pageRank(const Graph3& graph,
 
 	diff = 0;
 	for (tie(v1, v2) = vertices(graph); v1 != v2; v1++) {
-	  tmp[indexes[*v1]] /= sum;
 	  diff += fabs(tmp[indexes[*v1]] - result[indexes[*v1]]);
+	  tmp[indexes[*v1]] /= sum;
 	}
 
 	resultStorage = tmpStorage;
@@ -659,7 +659,6 @@ bool solve(const Graph3& graph, ostream& cout, bool verbose, bool printGraphviz)
 
   if (printGraphviz) {
     printGraphvizWithSccs(graph, cout, sccs, indexes);
-    return true;
   }
 
   if (verbose) {
@@ -774,8 +773,8 @@ int main(int argc, char* argv[])
   bool trace = false;
   bool pageRankFlag = false;
   uint64_t maxIterations = 100000;
-  float_t danglingFactor = 0.15;
-  float_t convergence = 0.0000001;
+  float_t danglingFactor = 0.0001;
+  float_t convergence = 0.0001;
 
   po::options_description desc("Allowed options");
   desc.add_options()

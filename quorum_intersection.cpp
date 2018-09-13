@@ -593,7 +593,7 @@ void printPageRank(const Graph3& graph,
   }
 
   sort(sortedByRank.begin(), sortedByRank.end(),
-	   [&graph](const pair<string, float_t>& a, const pair<string, float_t>& b) -> bool {
+	   [](const pair<string, float_t>& a, const pair<string, float_t>& b) -> bool {
 		 if (a.second == b.second) {
 		   return a.first < b.first;
 		 } else {

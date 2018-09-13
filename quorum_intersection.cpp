@@ -29,6 +29,7 @@
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include <boost/graph/adjacency_list.hpp>
@@ -579,11 +580,29 @@ void printPageRank(const Graph3& graph,
 				   const Indexes& indexes,
 				   ostream& out,
 				   PageRankVector& pageRankValues) {
+  vector<pair<string, float_t>> sortedByRank;
+  sortedByRank.reserve(pageRankValues.size());
+
   PageRank pageRank = make_iterator_property_map(pageRankValues.begin(), indexes);
+
   Graph3::vertex_iterator v1, v2;
   for (tie(v1, v2) = vertices(graph); v1 != v2; v1++) {
-    string label = graph[*v1].data.name.empty() ? graph[*v1].data.nodeID : graph[*v1].data.name;
-	out << label << ": " << pageRank[indexes[*v1]] << endl;
+	string label = graph[*v1].data.name;
+    label = label.empty() ? graph[*v1].data.nodeID : label;
+	sortedByRank.push_back(make_pair(label, pageRank[indexes[*v1]]));
+  }
+
+  sort(sortedByRank.begin(), sortedByRank.end(),
+	   [&graph](const pair<string, float_t>& a, const pair<string, float_t>& b) -> bool {
+		 if (a.second == b.second) {
+		   return a.first < b.first;
+		 } else {
+		   return a.second > b.second;
+		 }
+	   });
+
+  for (const auto& value : sortedByRank) {
+	out << value.first << ": " << value.second << endl;
   }
 }
 

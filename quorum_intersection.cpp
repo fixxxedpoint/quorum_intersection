@@ -16,10 +16,8 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
  * NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
  * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
- * DAMAGES
- * OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
- * IN
- * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 #include <algorithm>
 #include <cmath>
@@ -36,14 +34,16 @@
 #include <boost/graph/graph_utility.hpp>
 #include <boost/graph/graphviz.hpp>
 #include <boost/graph/strong_components.hpp>
-#include <boost/log/support/date_time.hpp>
-#include <boost/program_options.hpp>
-#include <boost/property_tree/json_parser.hpp>
-#include <boost/property_tree/ptree.hpp>
 
 #include <boost/log/core.hpp>
 #include <boost/log/expressions.hpp>
+#include <boost/log/support/date_time.hpp>
 #include <boost/log/trivial.hpp>
+
+#include <boost/program_options.hpp>
+
+#include <boost/property_tree/json_parser.hpp>
+#include <boost/property_tree/ptree.hpp>
 
 
 namespace logging = boost::log;
@@ -52,26 +52,6 @@ using namespace std;
 using namespace boost;
 
 using NodeID = string;
-
-struct QuorumSet {
-  uint32_t threshold;
-  vector<NodeID> nodeIds;
-  vector<QuorumSet> innerSets;
-};
-
-struct StellarNode {
-  NodeID node_id;
-  string name;
-  QuorumSet qSet;
-
-  NodeID getId() {
-    return node_id;
-  }
-
-  QuorumSet& getQuorumSet() {
-    return qSet;
-  }
-};
 
 template<typename T>
 struct GenericQuorumSet {
@@ -82,6 +62,7 @@ struct GenericQuorumSet {
 
 template<typename T, typename Q>
 struct GenericStellarNode {
+  using QuorumSet = GenericQuorumSet<Q>;
   T data;
   GenericQuorumSet<Q> qSet;
 };
@@ -91,70 +72,22 @@ struct NodeData {
   string name;
 };
 
+using StellarNode = GenericStellarNode<NodeData, NodeID>;
 struct GraphQData;
-using Graph3 = adjacency_list < vecS, vecS, directedS, GenericStellarNode<NodeData, GraphQData> >;
+using StellarGraphNode = GenericStellarNode<NodeData, GraphQData>;
+using Graph3 = adjacency_list < vecS, vecS, directedS, StellarGraphNode >;
 using NodeIx = Graph3::vertex_descriptor;
+using Indexes = property_map<Graph3, vertex_index_t>::type;
+using PageRankVector = std::vector<float_t>;
+using PageRank = iterator_property_map<typename PageRankVector::iterator, Indexes>;
 
 struct GraphQData {
   NodeIx index;
 };
 
-using Indexes = property_map<Graph3, vertex_index_t>::type;
-using PageRankVector = std::vector<float_t>;
-using PageRank = iterator_property_map<typename PageRankVector::iterator, Indexes>;
 
-PageRankVector pageRank(const Graph3& graph,
-                        const Indexes& indexes,
-                        const float_t m,
-                        const float_t convergence,
-                        const uint64_t maxIterations) {
-  const auto numVertices = num_vertices(graph);
-
-  PageRankVector resultStorage(numVertices, 0);
-  resultStorage[0] = 1;
-  float_t sum = 1;
-  PageRank result = make_iterator_property_map(resultStorage.begin(), indexes);
-  PageRankVector tmpStorage = resultStorage;
-  PageRank tmp = make_iterator_property_map(tmpStorage.begin(), indexes);
-
-  float_t diff = convergence + 1;
-  uint64_t iterations = 0;
-  for (; diff > convergence && iterations < maxIterations; iterations++) {
-    BOOST_LOG_TRIVIAL(trace) << "PageRank, iteration " << iterations << ", diff " << diff
-                             << ", sum " << sum << endl;
-
-    const float_t mS = m / numVertices;
-    sum = numVertices*mS;
-    fill(tmpStorage.begin(), tmpStorage.end(), mS);
-
-    Graph3::vertex_iterator v1, v2;
-    for (tie(v1, v2) = vertices(graph); v1 != v2; v1++) {
-      const float_t outDegree = float_t(out_degree(*v1, graph));
-      if (outDegree == 0) {
-        continue;
-      }
-      const float_t Ax_k = (1 - m) / outDegree * result[indexes[*v1]];
-      Graph3::adjacency_iterator av1, av2;
-      for (tie(av1, av2) = adjacent_vertices(*v1, graph); av1 != av2; av1++) {
-        tmp[indexes[*av1]] += Ax_k;
-        sum += Ax_k;
-      }
-    }
-
-    diff = 0;
-    for (tie(v1, v2) = vertices(graph); v1 != v2; v1++) {
-      diff += fabs(tmp[indexes[*v1]] - result[indexes[*v1]]);
-      tmp[indexes[*v1]] /= sum;
-    }
-
-    resultStorage = tmpStorage;
-  }
-
-  return resultStorage;
-}
-
-bool containsQuorumSlice(NodeIx node,
-                         const GenericQuorumSet<GraphQData>& quorumSet,
+bool containsQuorumSlice(const NodeIx node,
+                         const StellarGraphNode::QuorumSet& quorumSet,
                          const vector<bool>& availableNodes,
                          const Indexes& indexes) {
   BOOST_LOG_TRIVIAL(trace) << endl << "checking a quorum slice for node " << node;
@@ -180,7 +113,7 @@ bool containsQuorumSlice(NodeIx node,
       return true;
     }
     if (failLimit == 0) {
-      BOOST_LOG_TRIVIAL(trace) << "insufficient nodes";
+      BOOST_LOG_TRIVIAL(trace) << "insufficient number of nodes";
       return false;
     }
   }
@@ -196,7 +129,7 @@ bool containsQuorumSlice(NodeIx node,
       return true;
     }
     if (failLimit == 0) {
-      BOOST_LOG_TRIVIAL(trace) << "insufficient nodes";
+      BOOST_LOG_TRIVIAL(trace) << "insufficient number nodes";
       return false;
     }
   }
@@ -291,8 +224,6 @@ NodeIx findBestNode(const vector<NodeIx>& quorum,
     availableNodes[indexes[node]] = false;
   }
 
-  auto& nodes = !restriction.empty() ? restriction : quorum;
-
   uint64_t maxValue = 0;
   int maxCount = 1;
   NodeIx bestNode = *quorum.begin();
@@ -330,8 +261,8 @@ bool iterateMinimalQuorums(vector<NodeIx> toRemove,
                            vector<NodeIx> dontRemove,
                            const Indexes& indexes,
                            const Graph3& graph,
-                           std::function<bool(const vector<NodeIx>&)> visitor,
-                           std::function<bool(const vector<NodeIx>&)> currentVisitor) {
+                           const std::function<bool(const vector<NodeIx>&)> visitor,
+                           const std::function<bool(const vector<NodeIx>&)> currentVisitor) {
   static uint64_t counter = 0;
   BOOST_LOG_TRIVIAL(trace) << "iterateMinimalQuorums counter: " << ++counter;
 
@@ -377,15 +308,10 @@ bool iterateMinimalQuorums(vector<NodeIx> toRemove,
   for (NodeIx node : toRemove) {
     availableNodes[indexes[node]] = true;
     nodes.push_back(node);
-    // BOOST_LOG_TRIVIAL(trace) << "abacd " << node << endl;
   }
 
   BOOST_LOG_TRIVIAL(trace) << "searching for any quorum, size: " << nodes.size() << " "
                            << toRemove.size() + dontRemove.size();
-  for (const auto& av : availableNodes) {
-    BOOST_LOG_TRIVIAL(trace) << av << " ";
-  }
-  BOOST_LOG_TRIVIAL(trace) << endl;
   auto quorum = containsQuorum(nodes, availableNodes, graph, indexes);
   BOOST_LOG_TRIVIAL(trace) << "searching for minimal quorums, max quorum size: " << quorum.size();
   if (quorum.empty()) {
@@ -415,7 +341,6 @@ bool iterateMinimalQuorums(vector<NodeIx> toRemove,
     return false;
   }
 
-  // quorumNodes.erase(bestNode);
   toRemove.clear();
   copy_if(quorumNodes.begin(), quorumNodes.end(), back_inserter(toRemove),
           [&bestNode](const NodeIx& node) {
@@ -434,178 +359,6 @@ bool iterateMinimalQuorums(vector<NodeIx> toRemove,
   return iterateMinimalQuorums(toRemove, dontRemove, indexes, graph, visitor, currentVisitor);
 }
 
-QuorumSet parseQuorumSet(const property_tree::ptree& value) {
-  using namespace boost::property_tree;
-
-  QuorumSet result;
-  if (value.empty()) {
-    return result;
-  }
-
-  result.threshold = value.get<uint32_t>("threshold");
-  for (const ptree::value_type& validator : value.get_child("validators")) {
-    result.nodeIds.push_back(validator.second.get_value<string>());
-  }
-  for (const ptree::value_type& innerSet : value.get_child("innerQuorumSets")) {
-    result.innerSets.push_back(parseQuorumSet(innerSet.second));
-  }
-  return result;
-}
-
-vector<StellarNode> parseStellarConfigurationJSON(istream& is) {
-  vector<StellarNode> result;
-
-  using namespace boost::property_tree;
-  ptree root;
-  read_json(is, root);
-
-  for (ptree::value_type& node : root) {
-    NodeID publicKey = node.second.get<NodeID>("publicKey");
-    string name = node.second.get<string>("name");
-    QuorumSet qSet = parseQuorumSet(node.second.get_child("quorumSet"));
-    StellarNode stellarNode{publicKey, name, qSet};
-    result.push_back(stellarNode);
-  }
-
-  return result;
-}
-
-Graph3 buildDependencyGraph3(const vector<StellarNode>& nodes) {
-  Graph3 result;
-  std::unordered_map<NodeID, NodeIx> idMap;
-  for (auto& node : nodes) {
-    auto newNode = GenericStellarNode<NodeData, GraphQData>{NodeData{ node.node_id, node.name },
-                                                            GenericQuorumSet<GraphQData>{}};
-    auto v = add_vertex(newNode, result);
-    idMap[node.node_id] = v;
-  }
-
-  std::function<void(Graph3::vertex_descriptor,
-                     GenericQuorumSet<GraphQData>&, const QuorumSet&)> addEdges;
-  addEdges = [&result, &addEdges, &idMap]
-    (Graph3::vertex_descriptor nodeIx,
-     GenericQuorumSet<GraphQData>& quorumSet,
-     const QuorumSet& orig) {
-    quorumSet.threshold = orig.threshold;
-    for (auto& trust : orig.nodeIds) {
-      auto v = idMap[trust];
-      quorumSet.nodes.push_back(GraphQData{v});
-      add_edge(nodeIx, v, result);
-    }
-
-    for (const auto& innerSet : orig.innerSets) {
-      quorumSet.innerSets.push_back({});
-      addEdges(nodeIx, quorumSet.innerSets.back(), innerSet);
-    }
-  };
-
-  for (auto& node : nodes) {
-    auto& nodeIx = idMap[node.node_id];
-    addEdges(nodeIx, result[nodeIx].qSet, node.qSet);
-  }
-
-  return result;
-}
-
-template<typename T>
-void printQuorum(const vector<NodeIx>& quorum, const Graph3& graph, T& out) {
-  // out << "Quorum:" << endl;
-  for (auto& node : quorum) {
-    auto& value = graph[node];
-    out << value.data.name << " ";
-    out << value.data.nodeID << endl;
-    out << "( quorumslice: ";
-    out << "threshold = " << value.qSet.threshold << " ";
-    for (auto& nodeID : value.qSet.nodes) {
-      auto& value2 = graph[nodeID.index];
-      out << value2.data.nodeID << " ";
-    }
-    out << ") " << endl;
-    out << endl;
-  }
-  out << endl;
-}
-
-template <typename Graph>
-class NodeWriter {
-public:
-  NodeWriter(const Indexes& _indexes, const vector< uint >& _colors, uint _colorsCount, const Graph& _graph) :
-    indexes(_indexes),
-    colors(_colors),
-    offset(0xFFFFFF / _colorsCount),
-    graph(_graph) {
-  }
-
-  template <typename Vertex>
-  void operator()(std::ostream& out, const Vertex& v) const {
-    stringstream stream;
-    stream << setfill ('0') << setw(3*2) << hex << offset * colors[indexes[v]];
-    string color = stream.str();
-    string label = graph[v].data.name.empty() ? graph[v].data.nodeID : graph[v].data.name;
-
-    out << "[style=filled color=\"#" << color << "\" label=\"" << label << "\" fontcolor=\"white\"]";
-  }
-private:
-  const Indexes& indexes;
-  const Graph& graph;
-  const vector< uint > colors;
-  uint offset;
-};
-
-template<typename Graph>
-void printGraphvizWithSccs(const Graph& graph,
-                           ostream& out,
-                           const vector< vector<NodeIx> >& sccs,
-                           const Indexes& indexes) {
-  vector< uint > colors(num_vertices(graph));
-  for (auto it = 0u; it < sccs.size(); it++) {
-    for (const auto& v : sccs[it]) {
-      colors[indexes[v]] = it;
-    }
-  }
-  write_graphviz(out, graph, NodeWriter<Graph>(indexes, colors, sccs.size(), graph));
-  // boost::dynamic_properties dp;
-  // dp.property("label", boost::get(&StellarNode::name, graph));
-  // dp.property("label", boost::get(&GenericStellarNode<NodeData, GraphQData>::data::name, graph));
-  // auto colorGetter = [&colors, &indexes](const NodeIx& node) -> int {
-  //    return colors[indexes[node]];
-  // };
-  // dp.property("color", &colorGetter);
-  // dp.property("color", );
-  // dp.property("node_id", indexes);
-  // write_graphviz_dp(out, graph, dp);
-}
-
-void printPageRank(const Graph3& graph,
-                   const Indexes& indexes,
-                   ostream& out,
-                   PageRankVector& pageRankValues) {
-  vector<pair<string, float_t>> sortedByRank;
-  sortedByRank.reserve(pageRankValues.size());
-
-  PageRank pageRank = make_iterator_property_map(pageRankValues.begin(), indexes);
-
-  Graph3::vertex_iterator v1, v2;
-  for (tie(v1, v2) = vertices(graph); v1 != v2; v1++) {
-    string label = graph[*v1].data.name;
-    label = label.empty() ? graph[*v1].data.nodeID : label;
-    sortedByRank.push_back(make_pair(label, pageRank[indexes[*v1]]));
-  }
-
-  sort(sortedByRank.begin(), sortedByRank.end(),
-       [](const pair<string, float_t>& a, const pair<string, float_t>& b) -> bool {
-         if (a.second == b.second) {
-           return a.first < b.first;
-         } else {
-           return a.second > b.second;
-         }
-       });
-
-  for (const auto& value : sortedByRank) {
-    out << value.first << ": " << value.second << endl;
-  }
-}
-
 bool checkMinimalQuorums(const vector<NodeIx>& scc,
                          const Graph3& graph,
                          const Indexes& verIndexes,
@@ -615,7 +368,9 @@ bool checkMinimalQuorums(const vector<NodeIx>& scc,
   vector<bool> availableNodes(num_vertices(graph), true);
   auto counter = 0;
   std::function< bool( const vector<NodeIx>& ) > visitor;
-  visitor = [&result, &availableNodes, &scc, &graph, &verIndexes, &counter, &foundQuorum1, &foundQuorum2] (const vector<NodeIx>& quorum) -> bool {
+  visitor = [&result, &availableNodes, &scc, &graph, &verIndexes,
+             &counter, &foundQuorum1, &foundQuorum2]
+    (const vector<NodeIx>& quorum) -> bool {
 
     counter++;
     BOOST_LOG_TRIVIAL(trace) << "number of checked minimal quorums: " << counter;
@@ -654,6 +409,217 @@ bool checkMinimalQuorums(const vector<NodeIx>& scc,
                         visitor,
                         currentVisitor);
   return result;
+}
+
+StellarNode::QuorumSet parseQuorumSet(const property_tree::ptree& value) {
+  using namespace boost::property_tree;
+
+  StellarNode::QuorumSet result;
+  if (value.empty()) {
+    return result;
+  }
+
+  result.threshold = value.get<uint32_t>("threshold");
+  for (const ptree::value_type& validator : value.get_child("validators")) {
+    result.nodes.push_back(validator.second.get_value<string>());
+  }
+  for (const ptree::value_type& innerSet : value.get_child("innerQuorumSets")) {
+    result.innerSets.push_back(parseQuorumSet(innerSet.second));
+  }
+  return result;
+}
+
+vector<StellarNode> parseStellarConfigurationJSON(istream& is) {
+  vector<StellarNode> result;
+
+  using namespace boost::property_tree;
+  ptree root;
+  read_json(is, root);
+
+  for (ptree::value_type& node : root) {
+    NodeID publicKey = node.second.get<NodeID>("publicKey");
+    string name = node.second.get<string>("name");
+    StellarNode::QuorumSet qSet = parseQuorumSet(node.second.get_child("quorumSet"));
+    StellarNode stellarNode{NodeData{publicKey, name}, qSet};
+    result.push_back(stellarNode);
+  }
+
+  return result;
+}
+
+Graph3 buildDependencyGraph(const vector<StellarNode>& nodes) {
+  Graph3 result;
+  std::unordered_map<NodeID, NodeIx> idMap;
+  for (auto& node : nodes) {
+    auto newNode = StellarGraphNode{NodeData{ node.data.nodeID, node.data.name },
+                                    StellarGraphNode::QuorumSet{}};
+    auto v = add_vertex(newNode, result);
+    idMap[node.data.nodeID] = v;
+  }
+
+  std::function<void(Graph3::vertex_descriptor,
+                     StellarGraphNode::QuorumSet&, const StellarNode::QuorumSet&)> addEdges;
+  addEdges = [&result, &addEdges, &idMap]
+    (Graph3::vertex_descriptor nodeIx,
+     StellarGraphNode::QuorumSet& quorumSet,
+     const StellarNode::QuorumSet& orig) {
+    quorumSet.threshold = orig.threshold;
+    for (auto& trust : orig.nodes) {
+      auto v = idMap[trust];
+      quorumSet.nodes.push_back(GraphQData{v});
+      add_edge(nodeIx, v, result);
+    }
+
+    for (const auto& innerSet : orig.innerSets) {
+      quorumSet.innerSets.push_back({});
+      addEdges(nodeIx, quorumSet.innerSets.back(), innerSet);
+    }
+  };
+
+  for (auto& node : nodes) {
+    auto& nodeIx = idMap[node.data.nodeID];
+    addEdges(nodeIx, result[nodeIx].qSet, node.qSet);
+  }
+
+  return result;
+}
+
+template<typename T>
+void printQuorum(const vector<NodeIx>& quorum, const Graph3& graph, T& out) {
+  for (auto& node : quorum) {
+    auto& value = graph[node];
+    out << value.data.name << " ";
+    out << value.data.nodeID << endl;
+    out << "( quorumslice: ";
+    out << "threshold = " << value.qSet.threshold << " ";
+    for (auto& nodeID : value.qSet.nodes) {
+      auto& value2 = graph[nodeID.index];
+      out << value2.data.nodeID << " ";
+    }
+    out << ") " << endl;
+    out << endl;
+  }
+  out << endl;
+}
+
+template <typename Graph>
+class NodeWriter {
+public:
+  NodeWriter(const Indexes& _indexes, const vector< uint >& _colors, uint _colorsCount, const Graph& _graph) :
+    indexes(_indexes),
+    colors(_colors),
+    offset(0xFFFFFF / _colorsCount),
+    graph(_graph) {
+  }
+
+  template <typename Vertex>
+  void operator()(std::ostream& out, const Vertex& v) const {
+    stringstream stream;
+    stream << setfill ('0') << setw(3*2) << hex << offset * colors[indexes[v]];
+    string color = stream.str();
+    string label = graph[v].data.name.empty() ? graph[v].data.nodeID : graph[v].data.name;
+
+    out << "[style=filled color=\"#" << color << "\" label=\"" << label << "\" fontcolor=\"white\"]";
+  }
+private:
+  const Indexes& indexes;
+  const Graph& graph;
+  const vector<uint> colors;
+  const uint offset;
+};
+
+template<typename Graph>
+void printGraphvizWithSccs(const Graph& graph,
+                           ostream& out,
+                           const vector< vector<NodeIx> >& sccs,
+                           const Indexes& indexes) {
+  vector< uint > colors(num_vertices(graph));
+  for (auto it = 0u; it < sccs.size(); it++) {
+    for (const auto& v : sccs[it]) {
+      colors[indexes[v]] = it;
+    }
+  }
+  write_graphviz(out, graph, NodeWriter<Graph>(indexes, colors, sccs.size(), graph));
+}
+
+PageRankVector pageRank(const Graph3& graph,
+                        const Indexes& indexes,
+                        const float_t m,
+                        const float_t convergence,
+                        const uint64_t maxIterations) {
+  const auto numVertices = num_vertices(graph);
+
+  PageRankVector resultStorage(numVertices, 0);
+  resultStorage[0] = 1;
+  float_t sum = 1;
+  PageRank result = make_iterator_property_map(resultStorage.begin(), indexes);
+  PageRankVector tmpStorage = resultStorage;
+  PageRank tmp = make_iterator_property_map(tmpStorage.begin(), indexes);
+
+  float_t diff = convergence + 1;
+  uint64_t iterations = 0;
+  for (; diff > convergence && iterations < maxIterations; iterations++) {
+    BOOST_LOG_TRIVIAL(trace) << "PageRank, iteration " << iterations << ", diff " << diff
+                             << ", sum " << sum << endl;
+
+    const float_t mS = m / numVertices;
+    sum = numVertices*mS;
+    fill(tmpStorage.begin(), tmpStorage.end(), mS);
+
+    Graph3::vertex_iterator v1, v2;
+    for (tie(v1, v2) = vertices(graph); v1 != v2; v1++) {
+      const float_t outDegree = float_t(out_degree(*v1, graph));
+      if (outDegree == 0) {
+        continue;
+      }
+      const float_t Ax_k = (1 - m) / outDegree * result[indexes[*v1]];
+      Graph3::adjacency_iterator av1, av2;
+      for (tie(av1, av2) = adjacent_vertices(*v1, graph); av1 != av2; av1++) {
+        tmp[indexes[*av1]] += Ax_k;
+        sum += Ax_k;
+      }
+    }
+
+    diff = 0;
+    for (tie(v1, v2) = vertices(graph); v1 != v2; v1++) {
+      diff += fabs(tmp[indexes[*v1]] - result[indexes[*v1]]);
+      tmp[indexes[*v1]] /= sum;
+    }
+
+    resultStorage = tmpStorage;
+  }
+
+  return resultStorage;
+}
+
+void printPageRank(const Graph3& graph,
+                   const Indexes& indexes,
+                   ostream& out,
+                   PageRankVector& pageRankValues) {
+  vector<pair<string, float_t>> sortedByRank;
+  sortedByRank.reserve(pageRankValues.size());
+
+  const PageRank pageRank = make_iterator_property_map(pageRankValues.begin(), indexes);
+
+  Graph3::vertex_iterator v1, v2;
+  for (tie(v1, v2) = vertices(graph); v1 != v2; v1++) {
+    string label = graph[*v1].data.name;
+    label = label.empty() ? graph[*v1].data.nodeID : label;
+    sortedByRank.push_back(make_pair(label, pageRank[indexes[*v1]]));
+  }
+
+  sort(sortedByRank.begin(), sortedByRank.end(),
+       [](const pair<string, float_t>& a, const pair<string, float_t>& b) -> bool {
+         if (a.second == b.second) {
+           return a.first < b.first;
+         } else {
+           return a.second > b.second;
+         }
+       });
+
+  for (const auto& value : sortedByRank) {
+    out << value.first << ": " << value.second << endl;
+  }
 }
 
 bool solve(const Graph3& graph, ostream& cout, bool verbose, bool printGraphviz) {
@@ -753,7 +719,7 @@ bool solve(istream& cin, ostream& cout, bool verbose, bool printGraphviz) {
   Graph3 graph;
   {
     auto nodes = parseStellarConfigurationJSON(cin);
-    graph = buildDependencyGraph3(nodes);
+    graph = buildDependencyGraph(nodes);
   }
   return solve(graph, cout, verbose, printGraphviz);
 }
@@ -766,7 +732,7 @@ void computePageRank(istream& cin,
   Graph3 graph;
   {
     auto nodes = parseStellarConfigurationJSON(cin);
-    graph = buildDependencyGraph3(nodes);
+    graph = buildDependencyGraph(nodes);
   }
   auto indexes = get(vertex_index, graph);
 

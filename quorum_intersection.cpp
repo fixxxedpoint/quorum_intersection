@@ -104,10 +104,10 @@ using PageRankVector = std::vector<float_t>;
 using PageRank = iterator_property_map<typename PageRankVector::iterator, Indexes>;
 
 PageRankVector pageRank(const Graph3& graph,
-						const Indexes& indexes,
-						const float_t m,
-						const float_t convergence,
-						const uint64_t maxIterations) {
+                        const Indexes& indexes,
+                        const float_t m,
+                        const float_t convergence,
+                        const uint64_t maxIterations) {
   const auto numVertices = num_vertices(graph);
 
   PageRankVector resultStorage(numVertices, 0);
@@ -120,34 +120,34 @@ PageRankVector pageRank(const Graph3& graph,
   float_t diff = convergence + 1;
   uint64_t iterations = 0;
   for (; diff > convergence && iterations < maxIterations; iterations++) {
-	BOOST_LOG_TRIVIAL(trace) << "PageRank, iteration " << iterations << ", diff " << diff
-							 << ", sum " << sum << endl;
+    BOOST_LOG_TRIVIAL(trace) << "PageRank, iteration " << iterations << ", diff " << diff
+                             << ", sum " << sum << endl;
 
-	const float_t mS = m / numVertices;
-	sum = numVertices*mS;
-	fill(tmpStorage.begin(), tmpStorage.end(), mS);
+    const float_t mS = m / numVertices;
+    sum = numVertices*mS;
+    fill(tmpStorage.begin(), tmpStorage.end(), mS);
 
-	Graph3::vertex_iterator v1, v2;
-	for (tie(v1, v2) = vertices(graph); v1 != v2; v1++) {
-	  const float_t outDegree = float_t(out_degree(*v1, graph));
-	  if (outDegree == 0) {
-		continue;
-	  }
-	  const float_t Ax_k = (1 - m) / outDegree * result[indexes[*v1]];
-	  Graph3::adjacency_iterator av1, av2;
-	  for (tie(av1, av2) = adjacent_vertices(*v1, graph); av1 != av2; av1++) {
-		tmp[indexes[*av1]] += Ax_k;
-		sum += Ax_k;
-	  }
-	}
+    Graph3::vertex_iterator v1, v2;
+    for (tie(v1, v2) = vertices(graph); v1 != v2; v1++) {
+      const float_t outDegree = float_t(out_degree(*v1, graph));
+      if (outDegree == 0) {
+        continue;
+      }
+      const float_t Ax_k = (1 - m) / outDegree * result[indexes[*v1]];
+      Graph3::adjacency_iterator av1, av2;
+      for (tie(av1, av2) = adjacent_vertices(*v1, graph); av1 != av2; av1++) {
+        tmp[indexes[*av1]] += Ax_k;
+        sum += Ax_k;
+      }
+    }
 
-	diff = 0;
-	for (tie(v1, v2) = vertices(graph); v1 != v2; v1++) {
-	  diff += fabs(tmp[indexes[*v1]] - result[indexes[*v1]]);
-	  tmp[indexes[*v1]] /= sum;
-	}
+    diff = 0;
+    for (tie(v1, v2) = vertices(graph); v1 != v2; v1++) {
+      diff += fabs(tmp[indexes[*v1]] - result[indexes[*v1]]);
+      tmp[indexes[*v1]] /= sum;
+    }
 
-	resultStorage = tmpStorage;
+    resultStorage = tmpStorage;
   }
 
   return resultStorage;
@@ -577,9 +577,9 @@ void printGraphvizWithSccs(const Graph& graph,
 }
 
 void printPageRank(const Graph3& graph,
-				   const Indexes& indexes,
-				   ostream& out,
-				   PageRankVector& pageRankValues) {
+                   const Indexes& indexes,
+                   ostream& out,
+                   PageRankVector& pageRankValues) {
   vector<pair<string, float_t>> sortedByRank;
   sortedByRank.reserve(pageRankValues.size());
 
@@ -587,22 +587,22 @@ void printPageRank(const Graph3& graph,
 
   Graph3::vertex_iterator v1, v2;
   for (tie(v1, v2) = vertices(graph); v1 != v2; v1++) {
-	string label = graph[*v1].data.name;
+    string label = graph[*v1].data.name;
     label = label.empty() ? graph[*v1].data.nodeID : label;
-	sortedByRank.push_back(make_pair(label, pageRank[indexes[*v1]]));
+    sortedByRank.push_back(make_pair(label, pageRank[indexes[*v1]]));
   }
 
   sort(sortedByRank.begin(), sortedByRank.end(),
-	   [](const pair<string, float_t>& a, const pair<string, float_t>& b) -> bool {
-		 if (a.second == b.second) {
-		   return a.first < b.first;
-		 } else {
-		   return a.second > b.second;
-		 }
-	   });
+       [](const pair<string, float_t>& a, const pair<string, float_t>& b) -> bool {
+         if (a.second == b.second) {
+           return a.first < b.first;
+         } else {
+           return a.second > b.second;
+         }
+       });
 
   for (const auto& value : sortedByRank) {
-	out << value.first << ": " << value.second << endl;
+    out << value.first << ": " << value.second << endl;
   }
 }
 
@@ -718,7 +718,7 @@ bool solve(const Graph3& graph, ostream& cout, bool verbose, bool printGraphviz)
     cout << "number of strongly connected components containing some quorum: " << nonIntersectingQs << endl;
     cout << "size of the main strongly connected component: " << sccs.front().size() << endl;
     cout << "main strongly connected component (all minimal quorums are included in it; "
-		 << "small size means small resilience of the network):" << endl;
+         << "small size means small resilience of the network):" << endl;
     printQuorum(sccs.front(), graph, cout);
   }
 
@@ -759,14 +759,14 @@ bool solve(istream& cin, ostream& cout, bool verbose, bool printGraphviz) {
 }
 
 void computePageRank(istream& cin,
-					 ostream& cout,
-					 const float_t danglingFactor,
-					 const float_t convergence,
-					 const uint64_t maxIterations) {
+                     ostream& cout,
+                     const float_t danglingFactor,
+                     const float_t convergence,
+                     const uint64_t maxIterations) {
   Graph3 graph;
   {
-	auto nodes = parseStellarConfigurationJSON(cin);
-	graph = buildDependencyGraph3(nodes);
+    auto nodes = parseStellarConfigurationJSON(cin);
+    graph = buildDependencyGraph3(nodes);
   }
   auto indexes = get(vertex_index, graph);
 
@@ -825,9 +825,9 @@ int main(int argc, char* argv[])
   }
 
   if (pageRankFlag) {
-	computePageRank(cin, cout, danglingFactor, convergence, maxIterations);
+    computePageRank(cin, cout, danglingFactor, convergence, maxIterations);
 
-	return EXIT_SUCCESS;
+    return EXIT_SUCCESS;
   }
 
   cout << boolalpha;

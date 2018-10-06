@@ -21,6 +21,7 @@
  */
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <functional>
 #include <iostream>
 #include <random>
@@ -100,7 +101,7 @@ bool containsQuorumSlice(const NodeIx node,
                                              quorumSet.innerSets.size()) - threshold + 1;
   BOOST_LOG_TRIVIAL(trace) << "threshold: " << threshold;
   BOOST_LOG_TRIVIAL(trace) << "number of nodes to consider: "  << quorumSet.nodes.size();
-  for (auto& id : quorumSet.nodes) {
+  for (const auto& id : quorumSet.nodes) {
     if (availableNodes[indexes[id.index]]) {
       threshold--;
       BOOST_LOG_TRIVIAL(trace) << "found a node from quorum slice. Its index: " << indexes[id.index];
@@ -117,7 +118,7 @@ bool containsQuorumSlice(const NodeIx node,
       return false;
     }
   }
-  for (auto& qSet : quorumSet.innerSets) {
+  for (const auto& qSet : quorumSet.innerSets) {
     if (containsQuorumSlice(node, qSet, availableNodes, indexes)) {
       threshold--;
     } else {
@@ -181,23 +182,15 @@ bool isMinimalQuorum(vector<NodeIx> nodes,
                      const Graph3& graph,
                      const Indexes& indexes) {
   BOOST_LOG_TRIVIAL(trace) << "checking for minimal quorum, size: " << nodes.size();
-  vector<NodeIx> nodesV(nodes.begin(), nodes.end());
-  if (containsQuorum(nodesV, availableNodes, graph, indexes).empty()) {
+  if (containsQuorum(nodes, availableNodes, graph, indexes).empty()) {
     BOOST_LOG_TRIVIAL(trace) << "it does not contain a quorum";
     return false;
   }
   for (NodeIx node : nodes) {
-
-    BOOST_LOG_TRIVIAL(trace) << "removing node from minimal candidate: " << node;
     auto index = indexes[node];
-    BOOST_LOG_TRIVIAL(trace) << "its index: " << index << endl;
     availableNodes[index] = false;
 
-    for (const auto& av : availableNodes) {
-      BOOST_LOG_TRIVIAL(trace) << av << " ";
-    }
-
-    if (!containsQuorum(nodesV, availableNodes, graph, indexes).empty()) {
+    if (!containsQuorum(nodes, availableNodes, graph, indexes).empty()) {
       BOOST_LOG_TRIVIAL(trace) << "found smaller quorum";
       return false;
     }
@@ -284,12 +277,6 @@ bool iterateMinimalQuorums(vector<NodeIx> toRemove,
     availableNodes[indexes[node]] = true;
     nodes.push_back(node);
   }
-
-  BOOST_LOG_TRIVIAL(trace) << "available nodes:";
-  for (const auto& av : availableNodes) {
-    BOOST_LOG_TRIVIAL(trace) << av << " ";
-  }
-  BOOST_LOG_TRIVIAL(trace) << endl;
 
   BOOST_LOG_TRIVIAL(trace) << "checking if dontRemove contains some quorum";
   if (!containsQuorum(nodes, availableNodes, graph, indexes).empty()) {
@@ -550,6 +537,9 @@ PageRankVector pageRank(const Graph3& graph,
   const auto numVertices = num_vertices(graph);
 
   PageRankVector resultStorage(numVertices, 0);
+  if (0 == numVertices) {
+	return resultStorage;
+  }
   resultStorage[0] = 1;
   float_t sum = 1;
   PageRank result = make_iterator_property_map(resultStorage.begin(), indexes);
@@ -569,7 +559,7 @@ PageRankVector pageRank(const Graph3& graph,
     Graph3::vertex_iterator v1, v2;
     for (tie(v1, v2) = vertices(graph); v1 != v2; v1++) {
       const float_t outDegree = float_t(out_degree(*v1, graph));
-      if (outDegree == 0) {
+      if (0 == outDegree) {
         continue;
       }
       const float_t Ax_k = (1 - m) / outDegree * result[indexes[*v1]];
@@ -691,7 +681,8 @@ bool solve(const Graph3& graph, ostream& cout, bool verbose, bool printGraphviz)
   if (nonIntersectingQs != 1) {
     if (verbose) {
       cout << "network's configuration is broken - more than one strongly connected component contains a quorum - "
-           << nonIntersectingQs;
+           << nonIntersectingQs
+           << endl;
     }
     return false;
   }

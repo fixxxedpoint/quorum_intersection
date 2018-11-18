@@ -56,7 +56,7 @@ using NodeID = string;
 
 template<typename T>
 struct GenericQuorumSet {
-  uint32_t threshold;
+  typename vector<T>::size_type threshold;
   vector<T> nodes;
   vector<GenericQuorumSet<T> > innerSets;
 };
@@ -96,8 +96,8 @@ bool containsQuorumSlice(const NodeIx node,
     BOOST_LOG_TRIVIAL(trace) << "no self";
     return false;
   }
-  uint32_t threshold = quorumSet.threshold;
-  uint32_t failLimit = static_cast<uint32_t>(quorumSet.nodes.size() +
+  auto threshold = quorumSet.threshold;
+  auto failLimit = static_cast<decltype(threshold)>(quorumSet.nodes.size() +
                                              quorumSet.innerSets.size()) - threshold + 1;
   BOOST_LOG_TRIVIAL(trace) << "threshold: " << threshold;
   BOOST_LOG_TRIVIAL(trace) << "number of nodes to consider: "  << quorumSet.nodes.size();
@@ -186,7 +186,7 @@ bool isMinimalQuorum(vector<NodeIx> nodes,
     BOOST_LOG_TRIVIAL(trace) << "it does not contain a quorum";
     return false;
   }
-  for (NodeIx node : nodes) {
+  for (const NodeIx& node : nodes) {
     auto index = indexes[node];
     availableNodes[index] = false;
 
@@ -273,7 +273,7 @@ bool iterateMinimalQuorums(vector<NodeIx> toRemove,
   vector<bool> availableNodes(num_vertices(graph), false);
   vector<NodeIx> nodes;
 
-  for (NodeIx node : dontRemove) {
+  for (const NodeIx& node : dontRemove) {
     availableNodes[indexes[node]] = true;
     nodes.push_back(node);
   }
@@ -292,14 +292,14 @@ bool iterateMinimalQuorums(vector<NodeIx> toRemove,
   }
 
   BOOST_LOG_TRIVIAL(trace) << "toRemove size: " << toRemove.size();
-  for (NodeIx node : toRemove) {
+  for (const NodeIx& node : toRemove) {
     availableNodes[indexes[node]] = true;
     nodes.push_back(node);
   }
 
   BOOST_LOG_TRIVIAL(trace) << "searching for any quorum, size: " << nodes.size() << " "
                            << toRemove.size() + dontRemove.size();
-  auto quorum = containsQuorum(nodes, availableNodes, graph, indexes);
+  const auto quorum = containsQuorum(nodes, availableNodes, graph, indexes);
   BOOST_LOG_TRIVIAL(trace) << "searching for minimal quorums, max quorum size: " << quorum.size();
   if (quorum.empty()) {
     BOOST_LOG_TRIVIAL(trace) << "no available quorum";
@@ -307,7 +307,7 @@ bool iterateMinimalQuorums(vector<NodeIx> toRemove,
   }
 
   std::unordered_set<NodeIx> quorumNodes(quorum.begin(), quorum.end());
-  for (NodeIx node : dontRemove) {
+  for (const NodeIx& node : dontRemove) {
     if (quorumNodes.find(node) == quorumNodes.end()) {
       BOOST_LOG_TRIVIAL(trace) << "dontRemove not included";
       return false;
@@ -315,11 +315,11 @@ bool iterateMinimalQuorums(vector<NodeIx> toRemove,
   }
 
   // find best candidate to process next
-  NodeIx bestNode = findBestNode(quorum, dontRemove, graph, indexes);
+  const NodeIx& bestNode = findBestNode(quorum, dontRemove, graph, indexes);
 
   BOOST_LOG_TRIVIAL(trace) << "best node: " << indexes[bestNode];
 
-  for (NodeIx node : dontRemove) {
+  for (const NodeIx& node : dontRemove) {
     quorumNodes.erase(node);
   }
 
@@ -366,7 +366,7 @@ bool checkMinimalQuorums(const vector<NodeIx>& scc,
       availableNodes[verIndexes[node]] = false;
     }
 
-    auto disjointQuorum = containsQuorum(scc, availableNodes, graph, verIndexes);
+    const auto disjointQuorum = containsQuorum(scc, availableNodes, graph, verIndexes);
     if (!disjointQuorum.empty()) {
       result = false;
 
@@ -406,7 +406,7 @@ StellarNode::QuorumSet parseQuorumSet(const property_tree::ptree& value) {
     return result;
   }
 
-  result.threshold = value.get<uint32_t>("threshold");
+  result.threshold = value.get<decltype(result.threshold)>("threshold");
   for (const ptree::value_type& validator : value.get_child("validators")) {
     result.nodes.push_back(validator.second.get_value<string>());
   }
@@ -425,7 +425,7 @@ vector<StellarNode> parseStellarConfigurationJSON(istream& is) {
 
   for (ptree::value_type& node : root) {
     NodeID publicKey = node.second.get<NodeID>("publicKey");
-    string name = node.second.get<string>("name");
+    string name = node.second.get<string>("name", "");
     StellarNode::QuorumSet qSet = parseQuorumSet(node.second.get_child("quorumSet"));
     StellarNode stellarNode{NodeData{publicKey, name}, qSet};
     result.push_back(stellarNode);
@@ -437,7 +437,7 @@ vector<StellarNode> parseStellarConfigurationJSON(istream& is) {
 Graph3 buildDependencyGraph(const vector<StellarNode>& nodes) {
   Graph3 result;
   std::unordered_map<NodeID, NodeIx> idMap;
-  for (auto& node : nodes) {
+  for (const auto& node : nodes) {
     auto newNode = StellarGraphNode{NodeData{ node.data.nodeID, node.data.name },
                                     StellarGraphNode::QuorumSet{}};
     auto v = add_vertex(newNode, result);
@@ -451,7 +451,7 @@ Graph3 buildDependencyGraph(const vector<StellarNode>& nodes) {
      StellarGraphNode::QuorumSet& quorumSet,
      const StellarNode::QuorumSet& orig) {
     quorumSet.threshold = orig.threshold;
-    for (auto& trust : orig.nodes) {
+    for (const auto& trust : orig.nodes) {
       auto v = idMap[trust];
       quorumSet.nodes.push_back(GraphQData{v});
       add_edge(nodeIx, v, result);
@@ -463,8 +463,8 @@ Graph3 buildDependencyGraph(const vector<StellarNode>& nodes) {
     }
   };
 
-  for (auto& node : nodes) {
-    auto& nodeIx = idMap[node.data.nodeID];
+  for (const auto& node : nodes) {
+    const auto& nodeIx = idMap[node.data.nodeID];
     addEdges(nodeIx, result[nodeIx].qSet, node.qSet);
   }
 
@@ -473,18 +473,17 @@ Graph3 buildDependencyGraph(const vector<StellarNode>& nodes) {
 
 template<typename T>
 void printQuorum(const vector<NodeIx>& quorum, const Graph3& graph, T& out) {
-  for (auto& node : quorum) {
-    auto& value = graph[node];
-    out << value.data.name << " ";
-    out << value.data.nodeID << endl;
-    out << "( quorumslice: ";
-    out << "threshold = " << value.qSet.threshold << " ";
-    for (auto& nodeID : value.qSet.nodes) {
-      auto& value2 = graph[nodeID.index];
+  for (const auto& node : quorum) {
+    const auto& value = graph[node];
+    out << value.data.name << " "
+        << value.data.nodeID << endl
+        << "( quorumslice: "
+        << "threshold = " << value.qSet.threshold << " ";
+    for (const auto& nodeID : value.qSet.nodes) {
+      const auto& value2 = graph[nodeID.index];
       out << value2.data.nodeID << " ";
     }
-    out << ") " << endl;
-    out << endl;
+    out << ") " << endl << endl;
   }
   out << endl;
 }
@@ -655,7 +654,7 @@ bool solve(const Graph3& graph, ostream& cout, bool verbose, bool printGraphviz)
       nodes.push_back(nodeIx);
     }
 
-    auto quorum = containsQuorum(nodes, availableNodes, graph, indexes);
+    const auto quorum = containsQuorum(nodes, availableNodes, graph, indexes);
     if (!quorum.empty()) {
       nonIntersectingQs++;
       if (verbose) {

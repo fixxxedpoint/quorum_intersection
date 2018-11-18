@@ -1,6 +1,6 @@
 cmake_minimum_required (VERSION 2.6)
 project (stellar-quorums-verifier)
-set(CMAKE_CXX_FLAGS "-std=c++14 ${CMAKE_CXX_FLAGS} -g -ftest-coverage -fprofile-arcs")
+set(CMAKE_CXX_STANDARD 14)
 
 set(Boost_USE_STATIC_LIBS OFF)
 set(Boost_USE_MULTITHREADED OFF)

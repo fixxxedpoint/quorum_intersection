@@ -76,9 +76,9 @@ struct NodeData {
 using StellarNode = GenericStellarNode<NodeData, NodeID>;
 struct GraphQData;
 using StellarGraphNode = GenericStellarNode<NodeData, GraphQData>;
-using Graph3 = adjacency_list < vecS, vecS, directedS, StellarGraphNode >;
-using NodeIx = Graph3::vertex_descriptor;
-using Indexes = property_map<Graph3, vertex_index_t>::type;
+using Graph = adjacency_list < vecS, vecS, directedS, StellarGraphNode >;
+using NodeIx = Graph::vertex_descriptor;
+using Indexes = property_map<Graph, vertex_index_t>::type;
 using PageRankVector = std::vector<float_t>;
 using PageRank = iterator_property_map<typename PageRankVector::iterator, Indexes>;
 
@@ -97,8 +97,7 @@ bool containsQuorumSlice(const NodeIx node,
     return false;
   }
   auto threshold = quorumSet.threshold;
-  auto failLimit = static_cast<decltype(threshold)>(quorumSet.nodes.size() +
-                                             quorumSet.innerSets.size()) - threshold + 1;
+  auto failLimit = static_cast<decltype(threshold)>(quorumSet.nodes.size() + quorumSet.innerSets.size()) - threshold + 1;
   BOOST_LOG_TRIVIAL(trace) << "threshold: " << threshold;
   BOOST_LOG_TRIVIAL(trace) << "number of nodes to consider: "  << quorumSet.nodes.size();
   for (const auto& id : quorumSet.nodes) {
@@ -140,7 +139,7 @@ bool containsQuorumSlice(const NodeIx node,
 
 vector<NodeIx> containsQuorum(vector<NodeIx> nodes,
                               vector<bool>& availableNodes,
-                              const Graph3& graph,
+                              const Graph& graph,
                               const Indexes& indexes) {
   vector<NodeIx> removedNodes;
   vector<NodeIx> filtered;
@@ -179,7 +178,7 @@ vector<NodeIx> containsQuorum(vector<NodeIx> nodes,
 
 bool isMinimalQuorum(vector<NodeIx> nodes,
                      vector<bool> availableNodes,
-                     const Graph3& graph,
+                     const Graph& graph,
                      const Indexes& indexes) {
   BOOST_LOG_TRIVIAL(trace) << "checking for minimal quorum, size: " << nodes.size();
   if (containsQuorum(nodes, availableNodes, graph, indexes).empty()) {
@@ -203,13 +202,13 @@ bool isMinimalQuorum(vector<NodeIx> nodes,
 
 NodeIx findBestNode(const vector<NodeIx>& quorum,
                     const vector<NodeIx>& restriction,
-                    const Graph3& graph,
+                    const Graph& graph,
                     const Indexes& indexes) {
   static default_random_engine generator{random_device{}()};
 
-  // choose uniformly at random a node with max in degree
+  // choose uniformly at random a node with max in-degree
   vector<bool> availableNodes(num_vertices(graph), false);
-  vector<uint64_t> inDegreeCount(num_vertices(graph), 0);
+  vector<uint64_t> inDegree(num_vertices(graph), 0);
   for (const NodeIx& node : quorum) {
     availableNodes[indexes[node]] = true;
   }
@@ -221,13 +220,13 @@ NodeIx findBestNode(const vector<NodeIx>& quorum,
   int maxCount = 1;
   NodeIx bestNode = *quorum.begin();
   for (const NodeIx& node : quorum) {
-    Graph3::adjacency_iterator v1, v2;
+    Graph::adjacency_iterator v1, v2;
     for (tie(v1, v2) = adjacent_vertices(node, graph); v1 != v2; v1++) {
       BOOST_LOG_TRIVIAL(trace) << "adjacent node: " << indexes[node] << " --> " << indexes[*v1];
       if (!availableNodes[indexes[*v1]]) {
         continue;
       }
-      uint64_t nodesDegree = ++inDegreeCount[indexes[*v1]];
+      uint64_t nodesDegree = ++inDegree[indexes[*v1]];
       if (nodesDegree >= maxValue) {
         if (nodesDegree == maxValue) {
           maxCount += 1;
@@ -253,7 +252,7 @@ NodeIx findBestNode(const vector<NodeIx>& quorum,
 bool iterateMinimalQuorums(vector<NodeIx> toRemove,
                            vector<NodeIx> dontRemove,
                            const Indexes& indexes,
-                           const Graph3& graph,
+                           const Graph& graph,
                            const std::function<bool(const vector<NodeIx>&)> visitor,
                            const std::function<bool(const vector<NodeIx>&)> currentVisitor) {
   static uint64_t counter = 0;
@@ -347,7 +346,7 @@ bool iterateMinimalQuorums(vector<NodeIx> toRemove,
 }
 
 bool checkMinimalQuorums(const vector<NodeIx>& scc,
-                         const Graph3& graph,
+                         const Graph& graph,
                          const Indexes& verIndexes,
                          vector<NodeIx>& foundQuorum1,
                          vector<NodeIx>& foundQuorum2) {
@@ -385,8 +384,10 @@ bool checkMinimalQuorums(const vector<NodeIx>& scc,
   };
 
   std::function<bool(const vector<NodeIx>&)> currentVisitor;
+  // early exit
   currentVisitor = [&scc](const vector<NodeIx>& qCandidate) -> bool {
-    return qCandidate.size() > ((scc.size() / 2) + 1);
+    // one of the quorums must be of size <= floor(scc.size() / 2), otherwise they intersect by a least one node
+    return qCandidate.size() > (scc.size() / 2);
   };
 
   iterateMinimalQuorums(scc,
@@ -434,8 +435,8 @@ vector<StellarNode> parseStellarConfigurationJSON(istream& is) {
   return result;
 }
 
-Graph3 buildDependencyGraph(const vector<StellarNode>& nodes) {
-  Graph3 result;
+Graph buildDependencyGraph(const vector<StellarNode>& nodes) {
+  Graph result;
   std::unordered_map<NodeID, NodeIx> idMap;
   for (const auto& node : nodes) {
     auto newNode = StellarGraphNode{NodeData{ node.data.nodeID, node.data.name },
@@ -444,10 +445,10 @@ Graph3 buildDependencyGraph(const vector<StellarNode>& nodes) {
     idMap[node.data.nodeID] = v;
   }
 
-  std::function<void(Graph3::vertex_descriptor,
+  std::function<void(Graph::vertex_descriptor,
                      StellarGraphNode::QuorumSet&, const StellarNode::QuorumSet&)> addEdges;
   addEdges = [&result, &addEdges, &idMap]
-    (Graph3::vertex_descriptor nodeIx,
+    (Graph::vertex_descriptor nodeIx,
      StellarGraphNode::QuorumSet& quorumSet,
      const StellarNode::QuorumSet& orig) {
     quorumSet.threshold = orig.threshold;
@@ -472,7 +473,7 @@ Graph3 buildDependencyGraph(const vector<StellarNode>& nodes) {
 }
 
 template<typename T>
-void printQuorum(const vector<NodeIx>& quorum, const Graph3& graph, T& out) {
+void printQuorum(const vector<NodeIx>& quorum, const Graph& graph, T& out) {
   for (const auto& node : quorum) {
     const auto& value = graph[node];
     out << value.data.name << " "
@@ -528,7 +529,7 @@ void printGraphvizWithSccs(const Graph& graph,
   write_graphviz(out, graph, NodeWriter<Graph>(indexes, colors, sccs.size(), graph));
 }
 
-PageRankVector pageRank(const Graph3& graph,
+PageRankVector pageRank(const Graph& graph,
                         const Indexes& indexes,
                         const float_t m,
                         const float_t convergence,
@@ -555,14 +556,14 @@ PageRankVector pageRank(const Graph3& graph,
     sum = numVertices*mS;
     fill(tmpStorage.begin(), tmpStorage.end(), mS);
 
-    Graph3::vertex_iterator v1, v2;
+    Graph::vertex_iterator v1, v2;
     for (tie(v1, v2) = vertices(graph); v1 != v2; v1++) {
       const float_t outDegree = float_t(out_degree(*v1, graph));
       if (0 == outDegree) {
         continue;
       }
       const float_t Ax_k = (1 - m) / outDegree * result[indexes[*v1]];
-      Graph3::adjacency_iterator av1, av2;
+      Graph::adjacency_iterator av1, av2;
       for (tie(av1, av2) = adjacent_vertices(*v1, graph); av1 != av2; av1++) {
         tmp[indexes[*av1]] += Ax_k;
         sum += Ax_k;
@@ -581,7 +582,7 @@ PageRankVector pageRank(const Graph3& graph,
   return resultStorage;
 }
 
-void printPageRank(const Graph3& graph,
+void printPageRank(const Graph& graph,
                    const Indexes& indexes,
                    ostream& out,
                    PageRankVector& pageRankValues) {
@@ -590,7 +591,7 @@ void printPageRank(const Graph3& graph,
 
   const PageRank pageRank = make_iterator_property_map(pageRankValues.begin(), indexes);
 
-  Graph3::vertex_iterator v1, v2;
+  Graph::vertex_iterator v1, v2;
   for (tie(v1, v2) = vertices(graph); v1 != v2; v1++) {
     string label = graph[*v1].data.name;
     label = label.empty() ? graph[*v1].data.nodeID : label;
@@ -611,18 +612,18 @@ void printPageRank(const Graph3& graph,
   }
 }
 
-bool solve(const Graph3& graph, ostream& cout, bool verbose, bool printGraphviz) {
+bool solve(const Graph& graph, ostream& cout, bool verbose, bool printGraphviz) {
   BOOST_LOG_TRIVIAL(trace) << "number of nodes: " << num_vertices(graph);
 
   // find all strongly connected components
   // all minimal quorums are inside of some scc
-  vector<Graph3::vertices_size_type> components(num_vertices(graph));
+  vector<Graph::vertices_size_type> components(num_vertices(graph));
   auto sccCount = strong_components
     (graph, make_iterator_property_map(components.begin(), get(vertex_index, graph)));
 
   // group nodes by their strongly connected components
   vector< vector<NodeIx> > sccs(sccCount);
-  Graph3::vertex_iterator v1, v2;
+  Graph::vertex_iterator v1, v2;
   auto indexes = get(vertex_index, graph);
   for (tie(v1, v2) = vertices(graph); v1 != v2; v1++) {
     auto index = indexes[*v1];
@@ -706,7 +707,7 @@ bool solve(const Graph3& graph, ostream& cout, bool verbose, bool printGraphviz)
 }
 
 bool solve(istream& cin, ostream& cout, bool verbose, bool printGraphviz) {
-  Graph3 graph;
+  Graph graph;
   {
     auto nodes = parseStellarConfigurationJSON(cin);
     graph = buildDependencyGraph(nodes);
@@ -719,7 +720,7 @@ void computePageRank(istream& cin,
                      const float_t danglingFactor,
                      const float_t convergence,
                      const uint64_t maxIterations) {
-  Graph3 graph;
+  Graph graph;
   {
     auto nodes = parseStellarConfigurationJSON(cin);
     graph = buildDependencyGraph(nodes);
